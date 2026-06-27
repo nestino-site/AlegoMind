@@ -156,7 +156,7 @@ export function ProviderCard({ provider, variant = "list", className }: Provider
           Mesaj
         </Link>
         <Link
-          href={`/rezervare/${provider.id}`}
+          href={`/rezervare/${provider.id}/tip`}
           className="flex-1 rounded-xl bg-brand-500 py-2 text-center text-xs font-semibold text-white hover:bg-brand-600 transition-colors"
         >
           Rezervă
