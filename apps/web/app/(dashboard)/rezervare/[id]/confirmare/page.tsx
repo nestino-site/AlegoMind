@@ -6,6 +6,7 @@ import { loadStripe, type Stripe, type StripeCardElement } from "@stripe/stripe-
 import { professionalsApi } from "@/lib/api/professionals";
 import { bookingsApi } from "@/lib/api/bookings";
 import { TypeBadge } from "@/components/ui/TypeBadge";
+import { BookingStepper } from "@/components/shared/BookingStepper";
 import type { SessionFormat } from "@/lib/types";
 
 const stripePromise = loadStripe(
@@ -83,7 +84,7 @@ export default function ConfirmarePage() {
     stripePromise.then((stripe) => {
       if (!mounted || !stripe) return;
       stripeRef.current = stripe;
-      const elements = stripe.elements();
+      const elements = stripe.elements({ locale: "ro" });
       const cardElement = elements.create("card", {
         style: {
           base: {
@@ -157,6 +158,8 @@ export default function ConfirmarePage() {
 
   return (
     <div className="max-w-lg mx-auto pb-28">
+      <BookingStepper current={3} />
+
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
@@ -188,6 +191,12 @@ export default function ConfirmarePage() {
             <span className="text-text-secondary">Tip ședință</span>
             <span className="font-medium text-text-primary">{sessionLabel}</span>
           </div>
+          {!draft.isTrial && (
+            <div className="flex justify-between">
+              <span className="text-text-secondary">Format</span>
+              <span className="font-medium text-text-primary">{FORMAT_LABELS[draft.sessionType]}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-text-secondary">Data</span>
             <span className="font-medium text-text-primary">{formatDateRo(draft.scheduledAt!)}</span>
@@ -211,7 +220,14 @@ export default function ConfirmarePage() {
 
       {/* Payment card */}
       <div className="rounded-2xl border border-border bg-white p-5 shadow-card mb-4">
-        <p className="text-sm font-semibold text-text-primary mb-3">Date card</p>
+        <p className="text-sm font-semibold text-text-primary mb-1">Date de card</p>
+        <p className="text-xs text-text-muted mb-3 flex items-center gap-1">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-emerald-500 flex-shrink-0">
+            <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2"/>
+            <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Datele tale sunt criptate. Nu stocăm informații despre card.
+        </p>
         <div
           id="card-element"
           className="border border-border rounded-xl p-4 bg-white"

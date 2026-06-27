@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { professionalsApi } from "@/lib/api/professionals";
 import { api } from "@/lib/api/client";
+import { BookingStepper } from "@/components/shared/BookingStepper";
 import type { SessionFormat } from "@/lib/types";
 
 interface BookingDraft {
@@ -214,6 +215,8 @@ export default function ProgramPage() {
 
   return (
     <div className="max-w-lg mx-auto pb-28">
+      <BookingStepper current={2} />
+
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
@@ -311,9 +314,12 @@ export default function ProgramPage() {
             </p>
           ) : (
             <>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-3">
-                Ore disponibile
-              </p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-text-muted uppercase tracking-widest">
+                  Ore disponibile
+                </p>
+                <p className="text-[10px] text-text-muted">Ora României (EET/EEST)</p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {slots.map((slot) => (
                   <button

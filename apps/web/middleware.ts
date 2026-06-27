@@ -32,6 +32,10 @@ const PROTECTED_PROFESIONIST_PATHS = [
   "/profesionist/profil",
   "/profesionist/program",
   "/profesionist/rezervari",
+  "/profesionist/sedinte",
+  "/profesionist/mesaje",
+  "/profesionist/clienti",
+  "/profesionist/statistici",
 ];
 
 function isProtected(pathname: string) {

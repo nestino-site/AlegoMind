@@ -129,7 +129,7 @@ export default function HomePage() {
     <>
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
       <section className="bg-hero-gradient border-b border-border">
-        <div className="container-app py-24 lg:py-36">
+        <div className="container-app pt-20 pb-10 lg:pt-32 lg:pb-14">
           <div className="max-w-2xl mx-auto text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-4 py-1.5 text-xs font-semibold text-brand-600 mb-8 shadow-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-pulse" />
@@ -490,9 +490,14 @@ export default function HomePage() {
             <div>
               <p className="text-xs font-semibold text-text-primary mb-3 uppercase tracking-wider">Platformă</p>
               <ul className="space-y-2">
-                {["Explorează", "Cum funcționează", "Prețuri", "Asistent AI"].map((item) => (
-                  <li key={item}>
-                    <Link href="#" className="text-xs text-text-muted hover:text-text-secondary transition-colors">{item}</Link>
+                {[
+                  { label: "Explorează", href: "/explorez" },
+                  { label: "Cum funcționează", href: "/#cum-functioneaza" },
+                  { label: "Prețuri", href: "/#preturi" },
+                  { label: "Asistent AI", href: "/asistent" },
+                ].map(({ label, href }) => (
+                  <li key={label}>
+                    <Link href={href} className="text-xs text-text-muted hover:text-text-secondary hover:underline transition-colors">{label}</Link>
                   </li>
                 ))}
               </ul>
@@ -502,9 +507,13 @@ export default function HomePage() {
             <div>
               <p className="text-xs font-semibold text-text-primary mb-3 uppercase tracking-wider">Profesioniști</p>
               <ul className="space-y-2">
-                {["Devino furnizor", "Panou de control", "Disponibilitate", "Editează profil"].map((item) => (
-                  <li key={item}>
-                    <Link href="#" className="text-xs text-text-muted hover:text-text-secondary transition-colors">{item}</Link>
+                {[
+                  { label: "Devino furnizor", href: "/inregistrare" },
+                  { label: "Panou de control", href: "/profesionist/panou" },
+                  { label: "Editează profil", href: "/profesionist/inregistrare" },
+                ].map(({ label, href }) => (
+                  <li key={label}>
+                    <Link href={href} className="text-xs text-text-muted hover:text-text-secondary hover:underline transition-colors">{label}</Link>
                   </li>
                 ))}
               </ul>
@@ -514,9 +523,14 @@ export default function HomePage() {
             <div>
               <p className="text-xs font-semibold text-text-primary mb-3 uppercase tracking-wider">Legal</p>
               <ul className="space-y-2">
-                {["Termeni și condiții", "Confidențialitate", "Cookie-uri", "Contact"].map((item) => (
-                  <li key={item}>
-                    <Link href="#" className="text-xs text-text-muted hover:text-text-secondary transition-colors">{item}</Link>
+                {[
+                  { label: "Termeni și condiții", href: "/termeni" },
+                  { label: "Confidențialitate", href: "/confidentialitate" },
+                  { label: "Cookie-uri", href: "/cookie-uri" },
+                  { label: "Contact", href: "/contact" },
+                ].map(({ label, href }) => (
+                  <li key={label}>
+                    <Link href={href} className="text-xs text-text-muted hover:text-text-secondary hover:underline transition-colors">{label}</Link>
                   </li>
                 ))}
               </ul>

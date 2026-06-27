@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { professionalsApi, type ProfessionalDetail } from "@/lib/api/professionals";
 import { TypeBadge } from "@/components/ui/TypeBadge";
+import { BookingStepper } from "@/components/shared/BookingStepper";
 import {
   IconVideo, IconPhone, IconMessage, IconMapPin, IconSparkle,
 } from "@/components/ui/Icons";
@@ -130,6 +131,8 @@ export default function TipPage() {
 
   return (
     <div className="max-w-lg mx-auto pb-28">
+      <BookingStepper current={1} />
+
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
@@ -164,8 +167,8 @@ export default function TipPage() {
                   : "border-border bg-white hover:border-brand-300 hover:shadow-card"
               }`}
             >
-              <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${isSelected ? "bg-brand-500/10" : "bg-bg"}`}>
-                <card.Icon size={20} className={isSelected ? "text-brand-500" : "text-text-muted"} />
+              <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${isSelected ? "bg-brand-500/10" : "bg-brand-50"}`}>
+                <card.Icon size={20} className={isSelected ? "text-brand-500" : "text-brand-300"} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-text-primary">{card.label}</p>

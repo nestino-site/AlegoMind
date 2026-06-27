@@ -41,13 +41,15 @@ export default function ProDashboardPage() {
       {/* Stats */}
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Ședințe totale",    value: "—", sub: "toate timpurile"   },
-          { label: "Clienți activi",    value: "—", sub: "luna aceasta"       },
-          { label: "Rating mediu",      value: "—", sub: "din recenzii"       },
-          { label: "Venituri / lună",   value: "—", sub: "în curs de calcul"  },
+          { label: "Ședințe totale",    value: "0",    sub: "toate timpurile",   muted: true },
+          { label: "Clienți activi",    value: "0",    sub: "luna aceasta",       muted: true },
+          { label: "Rating mediu",      value: "Nou",  sub: "din recenzii",       muted: true },
+          { label: "Venituri / lună",   value: "—",    sub: "în curs de calcul",  muted: true },
         ].map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-border bg-white p-4">
-            <p className="text-2xl font-bold text-text-primary">{stat.value}</p>
+            <p className={`text-2xl font-bold ${stat.muted && (stat.value === "0" || stat.value === "Nou" || stat.value === "—") ? "text-text-muted" : "text-text-primary"}`}>
+              {stat.value}
+            </p>
             <p className="text-xs font-semibold text-text-secondary mt-1">{stat.label}</p>
             <p className="text-[10px] text-text-muted mt-0.5">{stat.sub}</p>
           </div>
