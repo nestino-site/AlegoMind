@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum AccountType {
+  SEEKER
+  PROFESSIONAL
+}
+
+enum SubscriptionTier {
+  FREE
+  PLUS
+}
+
+enum ProfessionalType {
+  MENTOR
+  COACH
+  THERAPIST
+}
+
+enum SessionFormat {
+  TEXT
+  VIDEO
+  VOICE
+  IN_PERSON
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum SenderType {
+  USER
+  PROFESSIONAL
+  AI
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum OtpType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id                String           @id @default(uuid())
+  email             String           @unique
+  username          String           @unique
+  passwordHash      String
+  accountType       AccountType      @default(SEEKER)
+  firstName         String?
+  /// Public-facing name — can be an alias for anonymity
+  displayName       String?
+  avatar            String?
+  preferredLanguage String           @default("ro")
+  isEmailVerified   Boolean          @default(false)
+  isAnonymous       Boolean          @default(false)
+  subscriptionTier  SubscriptionTier @default(FREE)
+  points            Int              @default(0)
+  stripeCustomerId  String?
+  aiMatchCount      Int              @default(0)
+  createdAt         DateTime         @default(now())
+
+  professional       Professional?
+  bookings           Booking[]            @relation("SeekerBookings")
+  conversations      Conversation[]       @relation("SeekerConversations")
+  reviews            Review[]             @relation("SeekerReviews")
+  messages           Message[]
+  subscriptions      Subscription[]
+  refreshTokens      RefreshToken[]
+  otpTokens          OtpToken[]
+  matchingPreference MatchingPreference?
+
+  @@index([email])
+  @@index([username])
+  @@map("users")
+}
+
+/// JWT refresh tokens — one row per active session; deleted on rotation or logout
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  /// JWT ID claim — stored plain text; security comes from the JWT signature
+  jti       String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+/// One-time codes for email verification and password reset
+model OtpToken {
+  id        String    @id @default(uuid())
+  userId    String
+  codeHash  String
+  type      OtpType
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("otp_tokens")
+}
+
+/// Seeker matching preferences set during multi-step onboarding
+model MatchingPreference {
+  id                   String            @id @default(uuid())
+  userId               String            @unique
+  topics               String[]
+  communicationFormats SessionFormat[]
+  providerGender       String?
+  providerAgeMin       Int?
+  providerAgeMax       Int?
+  preferredType        ProfessionalType?
+  updatedAt            DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("matching_preferences")
+}
+
+model Professional {
+  id                String           @id @default(uuid())
+  userId            String           @unique
+  type              ProfessionalType
+  bio               String           @db.Text
+  specializations   String[]
+  sessionFormats    SessionFormat[]
+  languages         String[]
+  pricePerSession   Float
+  trialPrice        Float?
+  trialDuration     Int?
+  availableForTrial Boolean          @default(false)
+  rating            Float            @default(0)
+  reviewCount       Int              @default(0)
+  yearsExperience   Int              @default(0)
+  responseRate      Float            @default(100)
+  isVerified        Boolean          @default(false)
+  verificationBadge String?
+  gender            String?          // male | female | non_binary | prefer_not_to_say
+  isAvailable       Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability  Availability[]
+  bookings      Booking[]      @relation("ProfessionalBookings")
+  conversations Conversation[] @relation("ProfessionalConversations")
+  reviews       Review[]       @relation("ProfessionalReviews")
+
+  @@index([type])
+  @@index([isAvailable])
+  @@index([rating])
+  @@map("professionals")
+}
+
+model Availability {
+  id             String    @id @default(uuid())
+  professionalId String
+  dayOfWeek      DayOfWeek
+  startTime      String
+  endTime        String
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([professionalId, dayOfWeek, startTime])
+  @@index([professionalId])
+  @@map("availability")
+}
+
+model Booking {
+  id                    String        @id @default(uuid())
+  seekerId              String
+  professionalId        String
+  sessionType           SessionFormat
+  durationMinutes       Int
+  scheduledAt           DateTime
+  status                BookingStatus @default(PENDING)
+  price                 Float
+  platformFee           Float
+  professionalEarning   Float
+  stripePaymentIntentId String?
+  createdAt             DateTime      @default(now())
+
+  seeker       User         @relation("SeekerBookings", fields: [seekerId], references: [id])
+  professional Professional @relation("ProfessionalBookings", fields: [professionalId], references: [id])
+  review       Review?
+
+  @@index([seekerId])
+  @@index([professionalId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("bookings")
+}
+
+model Conversation {
+  id             String   @id @default(uuid())
+  seekerId       String
+  professionalId String
+  lastMessageAt  DateTime @default(now())
+
+  seeker       User         @relation("SeekerConversations", fields: [seekerId], references: [id])
+  professional Professional @relation("ProfessionalConversations", fields: [professionalId], references: [id])
+  messages     Message[]
+
+  @@unique([seekerId, professionalId])
+  @@index([seekerId])
+  @@index([professionalId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String     @id @default(uuid())
+  conversationId String
+  senderId       String
+  senderType     SenderType
+  content        String     @db.Text
+  createdAt      DateTime   @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model Review {
+  id             String   @id @default(uuid())
+  bookingId      String   @unique
+  seekerId       String
+  professionalId String
+  rating         Int
+  comment        String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  booking      Booking      @relation(fields: [bookingId], references: [id])
+  seeker       User         @relation("SeekerReviews", fields: [seekerId], references: [id])
+  professional Professional @relation("ProfessionalReviews", fields: [professionalId], references: [id])
+
+  @@index([professionalId])
+  @@index([seekerId])
+  @@map("reviews")
+}
+
+model Subscription {
+  id                   String           @id @default(uuid())
+  userId               String
+  tier                 SubscriptionTier
+  stripeSubscriptionId String           @unique
+  currentPeriodEnd     DateTime
+  status               String
+  createdAt            DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}

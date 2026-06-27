@@ -1,0 +1,30 @@
+{
+  "name": "alegomind",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "build": "yarn workspace @alegomind/api build",
+    "build:web": "yarn workspace @alegomind/web build",
+    "start": "yarn workspace @alegomind/api start",
+    "start:dev": "yarn workspace @alegomind/api start:dev",
+    "start:prod": "yarn workspace @alegomind/api start:prod",
+    "web:dev": "yarn workspace @alegomind/web dev",
+    "prisma:migrate": "yarn workspace @alegomind/api prisma:migrate",
+    "prisma:generate": "yarn workspace @alegomind/api prisma:generate",
+    "prisma:studio": "yarn workspace @alegomind/api prisma:studio",
+    "prisma:seed": "yarn workspace @alegomind/api prisma:seed",
+    "prisma:reset": "yarn workspace @alegomind/api prisma:reset",
+    "test": "yarn workspace @alegomind/api test",
+    "test:e2e": "yarn workspace @alegomind/api test:e2e"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "yarn": ">=1.22.0"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}
