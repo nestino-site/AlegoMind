@@ -28,4 +28,8 @@ export default registerAs('app', () => ({
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
 
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT || '0.20'),
+
+  // Set BYPASS_PAYMENT=true to skip Stripe entirely (test/dev mode).
+  // Remove this env var (or set to false) to enable real Stripe payments.
+  bypassPayment: process.env.BYPASS_PAYMENT === 'true',
 }));

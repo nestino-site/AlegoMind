@@ -44,6 +44,10 @@ function formatTimeRo(iso: string) {
   return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 
+// Test mode: BYPASS_PAYMENT=true on the API means the server returns clientSecret: null
+// and the booking is auto-confirmed. We detect this after the first POST.
+// To go live: remove BYPASS_PAYMENT from apps/api/.env and add real Stripe keys.
+
 export default function ConfirmarePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -54,21 +58,20 @@ export default function ConfirmarePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cardError, setCardError] = useState<string | null>(null);
+  const [stripeReady, setStripeReady] = useState(false);
 
   const stripeRef = useRef<Stripe | null>(null);
   const cardElementRef = useRef<StripeCardElement | null>(null);
 
+  // Whether we're in bypass (test) mode — determined server-side, detected after create()
+  // We show the full Stripe form by default; it collapses if the server is in bypass mode.
+  const [bypassMode, setBypassMode] = useState(false);
+
   useEffect(() => {
     const raw = sessionStorage.getItem(`am_bk_${id}`);
-    if (!raw) {
-      router.replace(`/rezervare/${id}/tip`);
-      return;
-    }
+    if (!raw) { router.replace(`/rezervare/${id}/tip`); return; }
     const parsed: BookingDraft = JSON.parse(raw);
-    if (!parsed.scheduledAt) {
-      router.replace(`/rezervare/${id}/tip`);
-      return;
-    }
+    if (!parsed.scheduledAt) { router.replace(`/rezervare/${id}/tip`); return; }
     setDraft(parsed);
 
     professionalsApi.getById(id).then((p) => {
@@ -77,12 +80,18 @@ export default function ConfirmarePage() {
     });
   }, [id, router]);
 
+  // Mount Stripe card element (skipped automatically if bypass mode is already known)
   useEffect(() => {
-    if (!draft) return;
+    if (!draft || bypassMode) return;
     let mounted = true;
 
     stripePromise.then((stripe) => {
-      if (!mounted || !stripe) return;
+      if (!mounted) return;
+      if (!stripe) {
+        // Stripe key missing — auto-detect as bypass / test mode
+        setBypassMode(true);
+        return;
+      }
       stripeRef.current = stripe;
       const elements = stripe.elements({ locale: "ro" });
       const cardElement = elements.create("card", {
@@ -95,10 +104,9 @@ export default function ConfirmarePage() {
         },
       });
       cardElement.mount("#card-element");
-      cardElement.on("change", (e) => {
-        setCardError(e.error?.message ?? null);
-      });
+      cardElement.on("change", (e) => setCardError(e.error?.message ?? null));
       cardElementRef.current = cardElement;
+      setStripeReady(true);
     });
 
     return () => {
@@ -106,12 +114,13 @@ export default function ConfirmarePage() {
       cardElementRef.current?.destroy();
       cardElementRef.current = null;
     };
-  }, [draft]);
+  }, [draft, bypassMode]);
 
   async function handlePay() {
     if (!draft?.scheduledAt) return;
     setLoading(true);
     setError(null);
+
     try {
       const { booking, clientSecret } = await bookingsApi.create({
         professionalId: id,
@@ -121,8 +130,15 @@ export default function ConfirmarePage() {
         isTrial: draft.isTrial,
       });
 
-      if (!clientSecret) throw new Error("No payment intent received");
+      // ── Bypass / test mode ─────────────────────────────────────────────────
+      if (clientSecret === null) {
+        // Server already confirmed the booking — no Stripe step needed
+        sessionStorage.removeItem(`am_bk_${id}`);
+        router.replace(`/rezervare/confirmat/${booking.id}`);
+        return;
+      }
 
+      // ── Real Stripe flow ───────────────────────────────────────────────────
       const stripe = await stripePromise;
       const { error: stripeError } = await stripe!.confirmCardPayment(clientSecret, {
         payment_method: { card: cardElementRef.current! },
@@ -135,9 +151,7 @@ export default function ConfirmarePage() {
       sessionStorage.removeItem(`am_bk_${id}`);
       router.replace(`/rezervare/confirmat/${booking.id}`);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "A apărut o eroare. Încearcă din nou.",
-      );
+      setError(err instanceof Error ? err.message : "A apărut o eroare. Încearcă din nou.");
       setLoading(false);
     }
   }
@@ -152,9 +166,7 @@ export default function ConfirmarePage() {
     );
   }
 
-  const sessionLabel = draft.isTrial
-    ? "Ședință de probă"
-    : FORMAT_LABELS[draft.sessionType];
+  const sessionLabel = draft.isTrial ? "Ședință de probă" : FORMAT_LABELS[draft.sessionType];
 
   return (
     <div className="max-w-lg mx-auto pb-28">
@@ -173,6 +185,16 @@ export default function ConfirmarePage() {
         </button>
         <h1 className="text-lg font-bold text-text-primary">Confirmare rezervare</h1>
       </div>
+
+      {/* Test mode banner */}
+      {bypassMode && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3 mb-4">
+          <span className="text-amber-500 text-base">🧪</span>
+          <p className="text-xs text-amber-700 font-medium">
+            Mod testare — plata este simulată. Rezervarea va fi confirmată instant fără card.
+          </p>
+        </div>
+      )}
 
       {/* Summary card */}
       <div className="rounded-2xl border border-border bg-white p-5 shadow-card mb-4">
@@ -218,24 +240,21 @@ export default function ConfirmarePage() {
         <p className="text-xs text-text-muted mt-1 text-right">Plată securizată prin Stripe</p>
       </div>
 
-      {/* Payment card */}
-      <div className="rounded-2xl border border-border bg-white p-5 shadow-card mb-4">
-        <p className="text-sm font-semibold text-text-primary mb-1">Date de card</p>
-        <p className="text-xs text-text-muted mb-3 flex items-center gap-1">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-emerald-500 flex-shrink-0">
-            <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2"/>
-            <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          Datele tale sunt criptate. Nu stocăm informații despre card.
-        </p>
-        <div
-          id="card-element"
-          className="border border-border rounded-xl p-4 bg-white"
-        />
-        {cardError && (
-          <p className="text-red-500 text-sm mt-2">{cardError}</p>
-        )}
-      </div>
+      {/* Payment card — hidden in bypass mode */}
+      {!bypassMode && (
+        <div className="rounded-2xl border border-border bg-white p-5 shadow-card mb-4">
+          <p className="text-sm font-semibold text-text-primary mb-1">Date de card</p>
+          <p className="text-xs text-text-muted mb-3 flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-emerald-500 flex-shrink-0">
+              <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Datele tale sunt criptate. Nu stocăm informații despre card.
+          </p>
+          <div id="card-element" className="border border-border rounded-xl p-4 bg-white min-h-[52px]" />
+          {cardError && <p className="text-red-500 text-sm mt-2">{cardError}</p>}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 mb-4">
@@ -248,10 +267,14 @@ export default function ConfirmarePage() {
         <div className="max-w-lg mx-auto">
           <button
             onClick={handlePay}
-            disabled={loading}
+            disabled={loading || (!bypassMode && !stripeReady)}
             className="w-full rounded-2xl bg-brand-500 py-3 text-sm font-semibold text-white hover:bg-brand-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {loading ? "Se procesează..." : `Confirmă și plătește ${draft.price} RON`}
+            {loading
+              ? "Se procesează..."
+              : bypassMode
+                ? `Confirmă rezervarea — ${draft.price} RON`
+                : `Confirmă și plătește ${draft.price} RON`}
           </button>
         </div>
       </div>

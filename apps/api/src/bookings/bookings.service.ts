@@ -38,6 +38,32 @@ export class BookingsService {
     const platformFee = Math.round(price * feePercent * 100) / 100;
     const professionalEarning = Math.round((price - platformFee) * 100) / 100;
 
+    // ── Bypass mode (dev/test) ──────────────────────────────────────────────
+    // When BYPASS_PAYMENT=true, skip Stripe entirely.
+    // The booking is created as CONFIRMED immediately with a synthetic PI id.
+    // To switch to real payments: remove BYPASS_PAYMENT from .env and set real Stripe keys.
+    const bypassPayment = this.config.get<boolean>('app.bypassPayment', false);
+
+    if (bypassPayment) {
+      const booking = await this.prisma.booking.create({
+        data: {
+          seekerId,
+          professionalId: dto.professionalId,
+          sessionType: dto.sessionType,
+          durationMinutes: dto.durationMinutes,
+          scheduledAt: new Date(dto.scheduledAt),
+          price,
+          platformFee,
+          professionalEarning,
+          stripePaymentIntentId: `bypass_${Date.now()}`,
+          status: BookingStatus.CONFIRMED,
+        },
+        include: { professional: PROFESSIONAL_SELECT },
+      });
+      return { booking, clientSecret: null };
+    }
+    // ── Real Stripe flow ────────────────────────────────────────────────────
+
     const paymentIntent = await this.stripeService.createPaymentIntent(price, {
       seekerId,
       professionalId: dto.professionalId,
@@ -74,6 +100,11 @@ export class BookingsService {
       throw new BadRequestException('No payment intent associated with this booking');
     }
 
+    // Bypass-mode bookings are already CONFIRMED — idempotent, just return
+    if (booking.stripePaymentIntentId.startsWith('bypass_')) {
+      return booking;
+    }
+
     const pi = await this.stripeService.retrievePaymentIntent(booking.stripePaymentIntentId);
     if (pi.status !== 'succeeded') {
       throw new BadRequestException(`Payment not completed (Stripe status: ${pi.status})`);
@@ -97,7 +128,11 @@ export class BookingsService {
       throw new BadRequestException('Cancellation must be made at least 24 hours before the session');
     }
 
-    if (booking.stripePaymentIntentId) {
+    // Bypass-mode bookings have no real Stripe PI — skip cancellation entirely
+    if (
+      booking.stripePaymentIntentId &&
+      !booking.stripePaymentIntentId.startsWith('bypass_')
+    ) {
       try {
         const pi = await this.stripeService.retrievePaymentIntent(booking.stripePaymentIntentId);
         if (!['succeeded', 'canceled'].includes(pi.status)) {
