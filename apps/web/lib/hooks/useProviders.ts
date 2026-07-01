@@ -26,8 +26,7 @@ interface ApiProfessional {
   specializations: string[];
   rating: number;
   reviewCount: number;
-  sessionCount: number;
-  experienceYears: number;
+  yearsExperience: number;
   pricePerSession: number;
   sessionFormats: SessionFormat[];
   isVerified?: boolean;
@@ -64,11 +63,11 @@ function toProvider(p: ApiProfessional): Provider {
     specializations: p.specializations,
     rating: p.rating,
     reviewCount: p.reviewCount,
-    sessionCount: p.sessionCount,
-    experienceYears: p.experienceYears,
+    sessionCount: 0,
+    experienceYears: p.yearsExperience,
     pricePerSession: p.pricePerSession,
     formats: p.sessionFormats,
-    availability: "available", // derive from real availability endpoint if needed
+    availability: "available",
     bio: p.bio,
     responseRate: p.responseRate,
     isVerified: p.isVerified,

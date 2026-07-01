@@ -96,6 +96,25 @@ export class ProfessionalsService {
     return where;
   }
 
+  // ── My profile ──────────────────────────────────────────────────────────────
+
+  async findMyProfile(userId: string) {
+    const professional = await this.prisma.professional.findUnique({
+      where: { userId },
+      include: {
+        user: USER_INCLUDE,
+        availability: { orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] },
+        reviews: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          include: { seeker: { select: { displayName: true, avatar: true } } },
+        },
+      },
+    });
+    if (!professional) throw new NotFoundException('Professional profile not found');
+    return professional;
+  }
+
   // ── Detail ──────────────────────────────────────────────────────────────────
 
   async findOne(id: string) {
@@ -210,7 +229,11 @@ export class ProfessionalsService {
         ...(dto.yearsExperience !== undefined && { yearsExperience: dto.yearsExperience }),
         ...(dto.gender !== undefined && { gender: dto.gender }),
         ...(dto.isAvailable !== undefined && { isAvailable: dto.isAvailable }),
-      },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...('welcomeMessage' in dto && { welcomeMessage: (dto as any).welcomeMessage ?? null }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...('topicResponseTemplate' in dto && { topicResponseTemplate: (dto as any).topicResponseTemplate ?? null }),
+      } as Parameters<typeof this.prisma.professional.update>[0]['data'],
       include: { user: USER_INCLUDE },
     });
   }
@@ -332,6 +355,84 @@ export class ProfessionalsService {
     }
 
     return { professionalId, from, to, days };
+  }
+
+  async getChatServices(professionalId: string) {
+    return this.prisma.chatService.findMany({
+      where: { professionalId, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  async getMyChatServices(userId: string) {
+    const professional = await this.prisma.professional.findUnique({ where: { userId } });
+    if (!professional) throw new NotFoundException('Professional profile not found');
+    return this.prisma.chatService.findMany({
+      where: { professionalId: professional.id },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  async createChatService(
+    userId: string,
+    dto: { name: string; description?: string; price: number; isActive?: boolean },
+  ) {
+    const professional = await this.prisma.professional.findUnique({ where: { userId } });
+    if (!professional) throw new NotFoundException('Professional profile not found');
+
+    const agg = await this.prisma.chatService.aggregate({
+      _max: { sortOrder: true },
+      where: { professionalId: professional.id },
+    });
+
+    return this.prisma.chatService.create({
+      data: {
+        professionalId: professional.id,
+        name: dto.name,
+        description: dto.description,
+        price: dto.price,
+        isActive: dto.isActive ?? true,
+        sortOrder: (agg._max.sortOrder ?? 0) + 1,
+      },
+    });
+  }
+
+  async updateChatService(
+    userId: string,
+    serviceId: string,
+    dto: { name?: string; description?: string; price?: number; isActive?: boolean; sortOrder?: number },
+  ) {
+    const professional = await this.prisma.professional.findUnique({ where: { userId } });
+    if (!professional) throw new NotFoundException('Professional profile not found');
+
+    const service = await this.prisma.chatService.findUnique({ where: { id: serviceId } });
+    if (!service || service.professionalId !== professional.id) {
+      throw new NotFoundException('Chat service not found');
+    }
+
+    return this.prisma.chatService.update({
+      where: { id: serviceId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.price !== undefined && { price: dto.price }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+      },
+    });
+  }
+
+  async deleteChatService(userId: string, serviceId: string) {
+    const professional = await this.prisma.professional.findUnique({ where: { userId } });
+    if (!professional) throw new NotFoundException('Professional profile not found');
+
+    const service = await this.prisma.chatService.findUnique({ where: { id: serviceId } });
+    if (!service || service.professionalId !== professional.id) {
+      throw new NotFoundException('Chat service not found');
+    }
+
+    await this.prisma.chatService.delete({ where: { id: serviceId } });
+    return { deleted: true };
   }
 }
 

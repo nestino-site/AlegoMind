@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Query,
   Body,
@@ -48,6 +49,15 @@ export class ProfessionalsController {
     return this.professionalsService.getRecommended(user.id, limit ? Math.min(Number(limit), 50) : 20);
   }
 
+  @Get('profile')
+  @UseGuards(JwtAuthGuard, AccountTypeGuard)
+  @RequireAccountType(AccountType.PROFESSIONAL)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get current professional's own profile" })
+  getMyProfile(@CurrentUser() user: User) {
+    return this.professionalsService.findMyProfile(user.id);
+  }
+
   @Post('profile')
   @UseGuards(JwtAuthGuard, AccountTypeGuard)
   @RequireAccountType(AccountType.PROFESSIONAL)
@@ -79,6 +89,51 @@ export class ProfessionalsController {
     return this.professionalsService.setAvailability(user.id, user.accountType, dto);
   }
 
+  // ── Chat services (professional's configurable menu) ─────────────────────────
+
+  @Get('chat-services/mine')
+  @UseGuards(JwtAuthGuard, AccountTypeGuard)
+  @RequireAccountType(AccountType.PROFESSIONAL)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List my chat services (all, including inactive)' })
+  getMyChatServices(@CurrentUser() user: User) {
+    return this.professionalsService.getMyChatServices(user.id);
+  }
+
+  @Post('chat-services')
+  @UseGuards(JwtAuthGuard, AccountTypeGuard)
+  @RequireAccountType(AccountType.PROFESSIONAL)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a chat service option' })
+  createChatService(
+    @CurrentUser() user: User,
+    @Body() dto: { name: string; description?: string; price: number; isActive?: boolean },
+  ) {
+    return this.professionalsService.createChatService(user.id, dto);
+  }
+
+  @Patch('chat-services/:serviceId')
+  @UseGuards(JwtAuthGuard, AccountTypeGuard)
+  @RequireAccountType(AccountType.PROFESSIONAL)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a chat service option' })
+  updateChatService(
+    @CurrentUser() user: User,
+    @Param('serviceId') serviceId: string,
+    @Body() dto: { name?: string; description?: string; price?: number; isActive?: boolean; sortOrder?: number },
+  ) {
+    return this.professionalsService.updateChatService(user.id, serviceId, dto);
+  }
+
+  @Delete('chat-services/:serviceId')
+  @UseGuards(JwtAuthGuard, AccountTypeGuard)
+  @RequireAccountType(AccountType.PROFESSIONAL)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a chat service option' })
+  deleteChatService(@CurrentUser() user: User, @Param('serviceId') serviceId: string) {
+    return this.professionalsService.deleteChatService(user.id, serviceId);
+  }
+
   // ── List ─────────────────────────────────────────────────────────────────────
 
   @Get()
@@ -105,5 +160,10 @@ export class ProfessionalsController {
   })
   getAvailability(@Param('id') id: string, @Query() query: AvailabilityQueryDto) {
     return this.professionalsService.getAvailability(id, query.from, query.to);
+  }
+  @Get(':id/chat-services')
+  @ApiOperation({ summary: "Get a professional's active chat services" })
+  getChatServices(@Param('id') id: string) {
+    return this.professionalsService.getChatServices(id);
   }
 }

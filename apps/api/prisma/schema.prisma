@@ -60,6 +60,16 @@ enum OtpType {
   PASSWORD_RESET
 }
 
+enum ConversationStatus {
+  PENDING_TOPIC
+  ACTIVE
+}
+
+enum ConversationTopicType {
+  FREE
+  PAID
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -164,6 +174,8 @@ model Professional {
   verificationBadge String?
   gender            String?          // male | female | non_binary | prefer_not_to_say
   isAvailable       Boolean          @default(true)
+  welcomeMessage         String?    @db.Text
+  topicResponseTemplate  String?    @db.Text
   createdAt         DateTime         @default(now())
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -171,6 +183,7 @@ model Professional {
   bookings      Booking[]      @relation("ProfessionalBookings")
   conversations Conversation[] @relation("ProfessionalConversations")
   reviews       Review[]       @relation("ProfessionalReviews")
+  chatServices  ChatService[]
 
   @@index([type])
   @@index([isAvailable])
@@ -218,10 +231,17 @@ model Booking {
 }
 
 model Conversation {
-  id             String   @id @default(uuid())
-  seekerId       String
-  professionalId String
-  lastMessageAt  DateTime @default(now())
+  id                   String                 @id @default(uuid())
+  seekerId             String
+  professionalId       String
+  lastMessageAt        DateTime               @default(now())
+  status               ConversationStatus     @default(PENDING_TOPIC)
+  topicLabel           String?
+  topicType            ConversationTopicType?
+  topicCost            Float?
+  topicPaymentIntentId String?
+  seekerLastReadAt     DateTime?
+  proLastReadAt        DateTime?
 
   seeker       User         @relation("SeekerConversations", fields: [seekerId], references: [id])
   professional Professional @relation("ProfessionalConversations", fields: [professionalId], references: [id])
@@ -231,6 +251,23 @@ model Conversation {
   @@index([seekerId])
   @@index([professionalId])
   @@map("conversations")
+}
+
+model ChatService {
+  id             String   @id @default(uuid())
+  professionalId String
+  name           String
+  description    String?
+  price          Float
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId])
+  @@map("chat_services")
 }
 
 model Message {

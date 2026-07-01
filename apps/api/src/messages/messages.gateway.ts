@@ -6,7 +6,6 @@ import {
   OnGatewayDisconnect,
   MessageBody,
   ConnectedSocket,
-  WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
@@ -62,22 +61,57 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   @SubscribeMessage('join')
   async handleJoin(@ConnectedSocket() client: Socket, @MessageBody() conversationId: string) {
-    const userId = (client.data.user as { id: string }).id;
-
+    // Wrap everything — NestJS WsExceptionsHandler crashes the process on Node.js v24
+    // when any exception reaches its instanceof check. Never let an exception escape.
     try {
-      await this.messagesService.assertAccess(conversationId, userId);
-    } catch {
-      throw new WsException('Conversation not found or access denied');
-    }
+      const user = client.data.user as { id: string } | undefined;
+      if (!user?.id) return { error: 'Not authenticated' };
 
-    await client.join(conversationId);
-    return { status: 'joined', conversationId };
+      await this.messagesService.assertAccess(conversationId, user.id);
+      await client.join(conversationId);
+
+      // Mark conversation as read and notify the other party
+      try {
+        const { readAt, isSeeker } = await this.messagesService.markConversationRead(conversationId, user.id);
+        client.to(conversationId).emit('messages:read', {
+          conversationId,
+          readAt: readAt.toISOString(),
+          isSeeker,
+        });
+      } catch { /* non-fatal */ }
+
+      return { status: 'joined', conversationId };
+    } catch {
+      return { error: 'Conversation not found or access denied' };
+    }
+  }
+
+  @SubscribeMessage('read')
+  async handleRead(@ConnectedSocket() client: Socket, @MessageBody() conversationId: string) {
+    try {
+      const user = client.data.user as { id: string } | undefined;
+      if (!user?.id) return { error: 'Not authenticated' };
+
+      const { readAt, isSeeker } = await this.messagesService.markConversationRead(conversationId, user.id);
+      client.to(conversationId).emit('messages:read', {
+        conversationId,
+        readAt: readAt.toISOString(),
+        isSeeker,
+      });
+      return { status: 'ok' };
+    } catch {
+      return { error: 'Failed' };
+    }
   }
 
   @SubscribeMessage('leave')
   handleLeave(@ConnectedSocket() client: Socket, @MessageBody() conversationId: string) {
-    client.leave(conversationId);
-    return { status: 'left', conversationId };
+    try {
+      client.leave(conversationId);
+      return { status: 'left', conversationId };
+    } catch {
+      return { error: 'Failed' };
+    }
   }
 
   @SubscribeMessage('message')
@@ -85,30 +119,33 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { conversationId: string; content: string },
   ) {
-    const user = client.data.user as { id: string; accountType: AccountType };
-
-    const senderType =
-      user.accountType === AccountType.PROFESSIONAL ? SenderType.PROFESSIONAL : SenderType.USER;
-
-    let message: Awaited<ReturnType<MessagesService['sendMessage']>>;
     try {
-      message = await this.messagesService.sendMessage(
+      const user = client.data.user as { id: string; accountType: AccountType } | undefined;
+      if (!user?.id) return { error: 'Not authenticated' };
+
+      const senderType =
+        user.accountType === AccountType.PROFESSIONAL ? SenderType.PROFESSIONAL : SenderType.USER;
+
+      const message = await this.messagesService.sendMessage(
         payload.conversationId,
         user.id,
         payload.content,
         senderType,
       );
+      this.server.to(payload.conversationId).emit('message', message);
+      return { status: 'sent', messageId: message.id };
     } catch (err: any) {
-      throw new WsException(err.message);
+      return { error: err.message ?? 'Failed to send message' };
     }
-
-    // Broadcast to all clients in the conversation room (including sender)
-    this.server.to(payload.conversationId).emit('message', message);
-    return { status: 'sent', messageId: message.id };
   }
 
   // Called by MessagesController after HTTP message creation to sync real-time clients
   broadcastMessage(conversationId: string, message: unknown) {
     this.server.to(conversationId).emit('message', message);
+  }
+
+  // Called when professional ends the session — seeker's chat resets to topic selection
+  broadcastConversationReset(conversationId: string) {
+    this.server.to(conversationId).emit('conversation:reset');
   }
 }

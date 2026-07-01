@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { bookingsApi, type Booking } from "@/lib/api/bookings";
+import { messagesApi } from "@/lib/api/messages";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 import {
@@ -77,6 +79,15 @@ function CardSkeleton() {
 interface SessionCardProps { booking: Booking; onCancelRequest: (id: string) => void; cancelling: boolean; }
 
 function SessionCard({ booking, onCancelRequest, cancelling }: SessionCardProps) {
+  const router = useRouter();
+
+  async function handleMessage() {
+    try {
+      const conv = await messagesApi.createConversation(booking.professionalId);
+      router.push(`/conversatii/${conv.id}`);
+    } catch { /* ignore */ }
+  }
+
   const pro  = booking.professional;
   const name = pro?.user?.displayName ?? pro?.user?.firstName ?? "Profesionist necunoscut";
   const FormatIcon = FORMAT_ICONS[booking.sessionType];
@@ -107,11 +118,17 @@ function SessionCard({ booking, onCancelRequest, cancelling }: SessionCardProps)
         <span className="flex items-center gap-1"><FormatIcon size={12} className="text-text-muted" />{FORMAT_LABELS[booking.sessionType]}</span>
         <span className="font-semibold text-brand-500">{booking.price} RON</span>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
+        {isUpcoming(booking) && booking.status !== "CANCELLED" && (
+          <button onClick={handleMessage}
+            className="flex-1 rounded-xl border border-brand-200 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors">
+            Mesaj profesionist
+          </button>
+        )}
         {isUpcoming(booking) && canCancel(booking) && (
           <button onClick={() => onCancelRequest(booking.id)} disabled={cancelling}
             className="flex-1 rounded-xl border border-red-200 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">
-            {cancelling ? "Se anuleaza..." : "Anuleaza sedinta"}
+            {cancelling ? "Se anuleaza..." : "Anuleaza"}
           </button>
         )}
         {isPast(booking) && (
@@ -121,7 +138,7 @@ function SessionCard({ booking, onCancelRequest, cancelling }: SessionCardProps)
           </Link>
         )}
         {isUpcoming(booking) && !canCancel(booking) && booking.status !== "CANCELLED" && (
-          <p className="text-[10px] text-text-muted leading-relaxed">
+          <p className="text-[10px] text-text-muted leading-relaxed w-full">
             Anularea nu mai este posibila — mai putin de 24h pana la sedinta.
           </p>
         )}

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { professionalsApi, type ProfessionalDetail, type DayOfWeek } from "@/lib/api/professionals";
+import { messagesApi } from "@/lib/api/messages";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 import { AvailabilityDot } from "@/components/ui/AvailabilityDot";
 import { RatingStars } from "@/components/ui/RatingStars";
@@ -46,10 +48,22 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 export function ProfessionalProfileClient({ id }: { id: string }) {
+  const router = useRouter();
   const [professional, setProfessional] = useState<ProfessionalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState<Tab>("despre");
+  const [messaging, setMessaging] = useState(false);
+
+  const handleMessage = useCallback(async () => {
+    setMessaging(true);
+    try {
+      const conv = await messagesApi.createConversation(id);
+      router.push(`/conversatii/${conv.id}`);
+    } catch {
+      setMessaging(false);
+    }
+  }, [id, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,11 +179,10 @@ export function ProfessionalProfileClient({ id }: { id: string }) {
           </div>
 
           {/* Stats bar */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-3 gap-3 mb-6">
             {[
               { value: professional.reviewCount, label: "Recenzii" },
-              { value: professional.reviewCount, label: "Ședințe" },
-              { value: professional.yearsExperience, label: "Experiență" },
+              { value: `${professional.yearsExperience} ani`, label: "Experiență" },
               { value: `${professional.responseRate}%`, label: "Rată răspuns" },
             ].map((stat) => (
               <div key={stat.label} className="rounded-2xl border border-border bg-white py-4 text-center">
@@ -303,24 +316,26 @@ export function ProfessionalProfileClient({ id }: { id: string }) {
             >
               Rezervă ședință
             </Link>
-            <Link
-              href="/conversatii"
-              className="block w-full rounded-2xl border border-border py-3 text-center text-sm font-semibold text-text-secondary hover:border-brand-300 transition-colors"
+            <button
+              onClick={handleMessage}
+              disabled={messaging}
+              className="block w-full rounded-2xl border border-border py-3 text-center text-sm font-semibold text-text-secondary hover:border-brand-300 transition-colors disabled:opacity-50"
             >
-              Trimite mesaj
-            </Link>
+              {messaging ? "Se incarca..." : "Trimite mesaj"}
+            </button>
           </div>
         </aside>
       </div>
 
       {/* Mobile sticky action bar */}
       <div className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-sm border-t border-border z-40 px-4 py-3 flex gap-3">
-        <Link
-          href="/conversatii"
-          className="flex-1 rounded-2xl border border-border py-3 text-center text-sm font-semibold text-text-secondary hover:border-brand-300 transition-colors"
+        <button
+          onClick={handleMessage}
+          disabled={messaging}
+          className="flex-1 rounded-2xl border border-border py-3 text-center text-sm font-semibold text-text-secondary hover:border-brand-300 transition-colors disabled:opacity-50"
         >
-          Mesaj
-        </Link>
+          {messaging ? "..." : "Mesaj"}
+        </button>
         <Link
           href={`/rezervare/${id}/tip`}
           className="flex-1 rounded-2xl bg-brand-500 py-3 text-center text-sm font-semibold text-white hover:bg-brand-600 transition-colors"

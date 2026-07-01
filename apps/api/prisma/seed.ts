@@ -1,3 +1,7 @@
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 import { PrismaClient, ProfessionalType, SessionFormat, DayOfWeek, AccountType, BookingStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -82,14 +86,19 @@ async function upsertProfessional(seed: ProfessionalSeed) {
 
 async function main() {
   console.log('Seeding AlegoMind database...');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyPrisma = prisma as any;
 
   // ─── Clean up ────────────────────────────────────────────────────────────────
   // Demo bookings/reviews first — they FK-reference professionals, and the
   // blunt professional.deleteMany() below would otherwise fail on a re-run
   // with a foreign key violation against bookings created by the previous run.
-  await prisma.review.deleteMany({ where: { seeker: { email: 'seeker@demo.com' } } });
-  await prisma.booking.deleteMany({ where: { seeker: { email: 'seeker@demo.com' } } });
-
+  // Delete all dependent data before professionals to avoid FK violations
+  await prisma.review.deleteMany();
+  await prisma.booking.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversation.deleteMany();
+  await anyPrisma.chatService.deleteMany();
   await prisma.availability.deleteMany();
   await prisma.professional.deleteMany();
   await prisma.user.deleteMany({ where: { email: { endsWith: '@seed.alegomind.ro' } } });
@@ -556,6 +565,62 @@ async function main() {
       rating: 5,
       comment: 'Mentor excelent — practic, direct și foarte la curent cu piața tech.',
     });
+  }
+
+
+  // ── Chat services ──────────────────────────────────────────────────────────
+  // Upsert so re-running the seed is safe
+
+  async function upsertChatServices(professionalId: string, services: { name: string; description: string; price: number; sortOrder: number }[]) {
+    for (const s of services) {
+      const existing = await anyPrisma.chatService.findFirst({ where: { professionalId, name: s.name } });
+      if (!existing) {
+        await anyPrisma.chatService.create({ data: { ...s, professionalId } });
+      }
+    }
+  }
+
+  if (drAndrei.professional) {
+    await upsertChatServices(drAndrei.professional.id, [
+      { name: 'Sesiune CBT anxietate', description: 'O sesiune structurata de terapie cognitiv-comportamentala focusata pe anxietate', price: 60, sortOrder: 0 },
+      { name: 'Evaluare si plan de tratament', description: 'Evaluare psihologica initiala + plan personalizat de interventie', price: 80, sortOrder: 1 },
+    ]);
+  }
+
+  if (drElena.professional) {
+    await upsertChatServices(drElena.professional.id, [
+      { name: 'Sesiune de procesare a traumei', description: 'Spatiu sigur pentru a lucra prin experiente dificile din trecut', price: 65, sortOrder: 0 },
+      { name: 'Ghid relatii sanatoase', description: 'Tehnici practice pentru relatii mai bune cu cei dragi', price: 50, sortOrder: 1 },
+    ]);
+  }
+
+  if (mihai.professional) {
+    await upsertChatServices(mihai.professional.id, [
+      { name: 'Strategie de cariera', description: 'Analiza situatiei actuale si plan concret pentru urmatorul nivel', price: 45, sortOrder: 0 },
+      { name: 'Review CV + profil LinkedIn', description: 'Feedback detaliat si rescrierea punctelor cheie', price: 55, sortOrder: 1 },
+    ]);
+  }
+
+  if (lena.professional) {
+    await upsertChatServices(lena.professional.id, [
+      { name: 'Reset mindset - 30 min', description: 'Sesiune rapida de clarificare a blocajelor mentale si reprioritizare', price: 35, sortOrder: 0 },
+      { name: 'Plan de obiceiuri personalizat', description: 'Sistem practic de obiceiuri adaptat stilului tau de viata', price: 50, sortOrder: 1 },
+    ]);
+  }
+
+  if (ali.professional) {
+    await upsertChatServices(ali.professional.id, [
+      { name: 'AI Career Roadmap', description: 'Roadmap personalizat pentru o cariera in AI/ML cu resurse si pasi concisi', price: 30, sortOrder: 0 },
+      { name: 'Pregatire interviu tehnic', description: 'Mock interview + feedback pentru roluri de inginer AI/software', price: 45, sortOrder: 1 },
+      { name: 'Review proiect/cod', description: 'Feedback tehnic pe un proiect sau modul de cod al tau', price: 40, sortOrder: 2 },
+    ]);
+  }
+
+  if (sara.professional) {
+    await upsertChatServices(sara.professional.id, [
+      { name: 'Strategie produs digital', description: 'Sesiune de clarificare a viziunii de produs si prioritizare features', price: 50, sortOrder: 0 },
+      { name: 'Intrare in tech/product', description: 'Plan de tranzitie pentru cineva care vrea sa intre in domeniul tech', price: 40, sortOrder: 1 },
+    ]);
   }
 
   console.log('Seeded demo seeker:');

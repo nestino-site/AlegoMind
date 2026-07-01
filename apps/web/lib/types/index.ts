@@ -21,7 +21,7 @@ export interface AuthUser {
   username: string;
   displayName: string | null;
   firstName: string | null;
-  avatarUrl: string | null;
+  avatar: string | null;
   accountType: AccountType;
   subscriptionTier: SubscriptionTier;
   isAnonymous: boolean;
@@ -57,10 +57,10 @@ export interface Provider {
 
 export interface Review {
   id: string;
-  authorName: string;
   rating: number;
-  body: string;
+  comment: string | null;
   createdAt: string;
+  seeker: { displayName: string | null; avatar: string | null };
 }
 
 // ─── Session ──────────────────────────────────────────────────────────────────

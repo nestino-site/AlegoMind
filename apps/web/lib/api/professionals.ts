@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type { ProfessionalType, SessionFormat } from "@/lib/types";
+import type { Booking } from "./bookings";
 
 export type DayOfWeek =
   | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY"
@@ -23,6 +24,8 @@ export interface CreateProfilePayload {
   trialDuration?: number;
   yearsExperience?: number;
   gender?: string;
+  welcomeMessage?: string | null;
+  topicResponseTemplate?: string | null;
 }
 
 /** Matches professionals.service.ts findOne() exactly — full profile + relations. */
@@ -46,6 +49,8 @@ export interface ProfessionalDetail {
   verificationBadge: string | null;
   gender: string | null;
   isAvailable: boolean;
+  welcomeMessage: string | null;
+  topicResponseTemplate: string | null;
   createdAt: string;
   user: {
     firstName: string | null;
@@ -72,7 +77,28 @@ export interface ProfessionalDetail {
   }[];
 }
 
+export interface ChatService {
+  id: string;
+  professionalId: string;
+  name: string;
+  description: string | null;
+  price: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatServicePayload {
+  name: string;
+  description?: string;
+  price: number;
+  isActive?: boolean;
+}
+
 export const professionalsApi = {
+  getMyProfile: () => api.get<ProfessionalDetail>("/professionals/profile"),
+
   createProfile: (payload: CreateProfilePayload) =>
     api.post<void>("/professionals/profile", payload),
 
@@ -83,9 +109,20 @@ export const professionalsApi = {
     api.post<void>("/professionals/availability", { slots }),
 
   getBookings: (status?: string) =>
-    api.get<{ data: unknown[]; total: number }>(
+    api.get<Booking[]>(
       `/bookings/professional${status ? `?status=${status}` : ""}`,
     ),
 
   getById: (id: string) => api.get<ProfessionalDetail>(`/professionals/${id}`),
+
+  getMyChatServices: () => api.get<ChatService[]>("/professionals/chat-services/mine"),
+
+  createChatService: (payload: ChatServicePayload) =>
+    api.post<ChatService>("/professionals/chat-services", payload),
+
+  updateChatService: (id: string, payload: Partial<ChatServicePayload> & { sortOrder?: number }) =>
+    api.patch<ChatService>(`/professionals/chat-services/${id}`, payload),
+
+  deleteChatService: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/professionals/chat-services/${id}`),
 };

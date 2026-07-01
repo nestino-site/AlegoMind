@@ -34,6 +34,8 @@ const PROTECTED_PROFESIONIST_PATHS = [
   "/profesionist/rezervari",
   "/profesionist/sedinte",
   "/profesionist/mesaje",
+  "/profesionist/conversatii",
+  "/profesionist/servicii",
   "/profesionist/clienti",
   "/profesionist/statistici",
 ];

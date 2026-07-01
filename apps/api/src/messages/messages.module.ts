@@ -5,10 +5,13 @@ import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
 import { MessagesGateway } from './messages.gateway';
 import { PrismaModule } from '../prisma/prisma.module';
+import { StripeModule } from '../stripe/stripe.module';
 
 @Module({
   imports: [
     PrismaModule,
+    StripeModule,
+    ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
