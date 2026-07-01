@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { messagesApi, type Conversation } from "@/lib/api/messages";
 import { useUnread } from "@/lib/context/UnreadContext";
 import { TypeBadge } from "@/components/ui/TypeBadge";
@@ -52,9 +51,11 @@ function RowSkeleton() {
 /* ── conversation row ────────────────────────────────────── */
 
 function ConvRow({ conv, unread }: { conv: Conversation; unread: number }) {
+  const { latestMessages } = useUnread();
+  const latest = latestMessages[conv.id];
   const name = proName(conv);
-  const preview = lastMsg(conv);
-  const ts = relTime(conv.lastMessageAt);
+  const preview = latest?.content ?? lastMsg(conv);
+  const ts = relTime(latest?.createdAt ?? conv.lastMessageAt);
 
   return (
     <Link
@@ -96,8 +97,8 @@ function ConvRow({ conv, unread }: { conv: Conversation; unread: number }) {
 export default function ConversatiiPage() {
   const [convs, setConvs]     = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const { unreadCounts } = useUnread();
-  const router = useRouter();
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const { unreadCounts, latestMessages, notifPermission, requestNotifPermission } = useUnread();
 
   useEffect(() => {
     messagesApi
@@ -107,11 +108,44 @@ export default function ConversatiiPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Re-sort when real-time messages arrive so active conversations bubble to top
+  const sortedConvs = useMemo(
+    () =>
+      [...convs].sort((a, b) => {
+        const aTime = new Date(latestMessages[a.id]?.createdAt ?? a.lastMessageAt ?? 0).getTime();
+        const bTime = new Date(latestMessages[b.id]?.createdAt ?? b.lastMessageAt ?? 0).getTime();
+        return bTime - aTime;
+      }),
+    [convs, latestMessages],
+  );
+
   return (
     <div className="max-w-2xl mx-auto pb-28 lg:pb-0">
       <div className="mb-5">
         <h1 className="text-2xl font-bold text-text-primary">Conversatii</h1>
       </div>
+
+      {/* Notification permission banner */}
+      {notifPermission === "default" && !bannerDismissed && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-text-primary">Activează notificările</p>
+            <p className="text-[11px] text-text-muted leading-relaxed">Primește o notificare când ți se trimite un mesaj nou.</p>
+          </div>
+          <button
+            onClick={requestNotifPermission}
+            className="flex-shrink-0 rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600 transition-colors"
+          >
+            Activează
+          </button>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="flex-shrink-0 rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg transition-colors"
+          >
+            Nu acum
+          </button>
+        </div>
+      )}
 
       {/* AI assistant — always pinned */}
       <div className="mb-6">
@@ -162,7 +196,7 @@ export default function ConversatiiPage() {
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-white divide-y divide-border overflow-hidden">
-            {convs.map((c) => (
+            {sortedConvs.map((c) => (
               <ConvRow key={c.id} conv={c} unread={unreadCounts[c.id] ?? 0} />
             ))}
           </div>

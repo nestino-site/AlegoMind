@@ -11,6 +11,7 @@ import { AvailabilityDot } from "@/components/ui/AvailabilityDot";
 import { RatingStars } from "@/components/ui/RatingStars";
 import { SessionFormatChip } from "@/components/ui/SessionFormatChip";
 import { messagesApi } from "@/lib/api/messages";
+import { useAuth } from "@/lib/context/AuthContext";
 
 interface ProviderCardProps {
   provider: Provider;
@@ -41,12 +42,17 @@ function Avatar({ provider, size }: { provider: Provider; size: "sm" | "lg" }) {
 
 export function ProviderCard({ provider, variant = "list", className }: ProviderCardProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [messaging, setMessaging] = useState(false);
 
   async function handleMessage(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     if (messaging) return;
+    if (!user) {
+      router.push(`/autentificare?next=/profesionist/${provider.id}`);
+      return;
+    }
     setMessaging(true);
     try {
       const conv = await messagesApi.createConversation(provider.id);

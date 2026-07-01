@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { messagesApi, type ProConversation } from "@/lib/api/messages";
 import { useUnread } from "@/lib/context/UnreadContext";
 import { IconMessage } from "@/components/ui/Icons";
@@ -30,11 +29,11 @@ function seekerInitial(c: ProConversation) {
 }
 
 export default function ProMesajePage() {
-  const router = useRouter();
   const [conversations, setConversations] = useState<ProConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { unreadCounts } = useUnread();
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const { unreadCounts, latestMessages, notifPermission, requestNotifPermission } = useUnread();
 
   useEffect(() => {
     messagesApi
@@ -44,12 +43,45 @@ export default function ProMesajePage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Re-sort when real-time messages arrive so active conversations bubble to top
+  const sortedConversations = useMemo(
+    () =>
+      [...conversations].sort((a, b) => {
+        const aTime = new Date(latestMessages[a.id]?.createdAt ?? a.lastMessageAt ?? 0).getTime();
+        const bTime = new Date(latestMessages[b.id]?.createdAt ?? b.lastMessageAt ?? 0).getTime();
+        return bTime - aTime;
+      }),
+    [conversations, latestMessages],
+  );
+
   return (
     <div className="max-w-3xl mx-auto pb-24 lg:pb-0">
       <div className="mb-8">
         <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-1">Inbox</p>
         <h1 className="text-2xl font-bold text-text-primary">Mesaje</h1>
       </div>
+
+      {/* Notification permission banner */}
+      {notifPermission === "default" && !bannerDismissed && (
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-text-primary">Activează notificările</p>
+            <p className="text-[11px] text-text-muted leading-relaxed">Primești o alertă când un client îți trimite un mesaj nou.</p>
+          </div>
+          <button
+            onClick={requestNotifPermission}
+            className="flex-shrink-0 rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600 transition-colors"
+          >
+            Activează
+          </button>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="flex-shrink-0 rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg transition-colors"
+          >
+            Nu acum
+          </button>
+        </div>
+      )}
 
       {loading && (
         <div className="space-y-3">
@@ -79,10 +111,13 @@ export default function ProMesajePage() {
 
       {!loading && !error && conversations.length > 0 && (
         <div className="divide-y divide-border rounded-3xl border border-border bg-white overflow-hidden">
-          {conversations.map((conv) => {
+          {sortedConversations.map((conv) => {
             const lastMsg = conv.messages[0];
+            const latest = latestMessages[conv.id];
             const isActive = conv.status === "ACTIVE";
             const unread = unreadCounts[conv.id] ?? 0;
+            const previewText = latest?.content ?? lastMsg?.content ?? "Conversatie noua";
+            const previewTime = formatTime(latest?.createdAt ?? conv.lastMessageAt);
             return (
               <Link
                 key={conv.id}
@@ -113,7 +148,7 @@ export default function ProMesajePage() {
                   <div className="flex items-center justify-between gap-2 mb-0.5">
                     <p className={`text-sm truncate ${unread > 0 ? "font-bold text-text-primary" : "font-semibold text-text-primary"}`}>{seekerName(conv)}</p>
                     <span className="text-xs text-text-muted flex-shrink-0">
-                      {formatTime(conv.lastMessageAt)}
+                      {previewTime}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -128,7 +163,7 @@ export default function ProMesajePage() {
                       </span>
                     )}
                     <p className={`text-xs truncate ${unread > 0 ? "text-text-secondary font-medium" : "text-text-secondary"}`}>
-                      {lastMsg?.content ?? "Conversatie noua"}
+                      {previewText}
                     </p>
                   </div>
                 </div>

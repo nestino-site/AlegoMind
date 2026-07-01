@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { professionalsApi, type ProfessionalDetail, type DayOfWeek } from "@/lib/api/professionals";
 import { messagesApi } from "@/lib/api/messages";
+import { useAuth } from "@/lib/context/AuthContext";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 import { AvailabilityDot } from "@/components/ui/AvailabilityDot";
 import { RatingStars } from "@/components/ui/RatingStars";
@@ -49,6 +50,7 @@ function formatRelativeTime(dateStr: string): string {
 
 export function ProfessionalProfileClient({ id }: { id: string }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [professional, setProfessional] = useState<ProfessionalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -56,6 +58,10 @@ export function ProfessionalProfileClient({ id }: { id: string }) {
   const [messaging, setMessaging] = useState(false);
 
   const handleMessage = useCallback(async () => {
+    if (!user) {
+      router.push(`/autentificare?next=/profesionist/${id}`);
+      return;
+    }
     setMessaging(true);
     try {
       const conv = await messagesApi.createConversation(id);
@@ -63,7 +69,7 @@ export function ProfessionalProfileClient({ id }: { id: string }) {
     } catch {
       setMessaging(false);
     }
-  }, [id, router]);
+  }, [id, router, user]);
 
   useEffect(() => {
     let cancelled = false;

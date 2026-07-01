@@ -31,11 +31,19 @@ function saveLastRead(data: Record<string, string>) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch { /* ignore */ }
 }
 
+interface LatestMessagePreview {
+  content: string;
+  createdAt: string;
+}
+
 interface UnreadContextValue {
   unreadCounts: Record<string, number>;
   totalUnread: number;
   markAsRead: (conversationId: string) => void;
   setActiveConversation: (id: string | null) => void;
+  notifPermission: NotificationPermission | "unsupported";
+  requestNotifPermission: () => Promise<void>;
+  latestMessages: Record<string, LatestMessagePreview>;
 }
 
 const UnreadContext = createContext<UnreadContextValue>({
@@ -43,6 +51,9 @@ const UnreadContext = createContext<UnreadContextValue>({
   totalUnread: 0,
   markAsRead: () => {},
   setActiveConversation: () => {},
+  notifPermission: "unsupported",
+  requestNotifPermission: async () => {},
+  latestMessages: {},
 });
 
 export function useUnread() {
@@ -52,6 +63,10 @@ export function useUnread() {
 export function UnreadProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [latestMessages, setLatestMessages] = useState<Record<string, LatestMessagePreview>>({});
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">(
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission,
+  );
   const activeConvRef = useRef<string | null>(null);
   const lastReadRef = useRef<Record<string, string>>(loadLastRead());
 
@@ -113,7 +128,15 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
 
     socket.on("message", (msg: Message) => {
-      // Skip messages the user sent themselves (socket broadcasts to all including sender)
+      // Update the conversation list preview for real-time display (non-system, non-own messages)
+      if (msg.senderId !== user.id && !msg.content.startsWith("—")) {
+        setLatestMessages((prev) => ({
+          ...prev,
+          [msg.conversationId]: { content: msg.content, createdAt: msg.createdAt },
+        }));
+      }
+
+      // Skip messages the user sent themselves for unread counting
       if (msg.senderId === user.id) return;
       // Skip system messages (start/end with —)
       if (msg.content.startsWith("—")) return;
@@ -135,15 +158,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Request notification permission after a short delay (user must allow in browser)
-    const timer = setTimeout(() => {
-      if (typeof Notification !== "undefined" && Notification.permission === "default") {
-        Notification.requestPermission().catch(() => {});
-      }
-    }, 3000);
-
     return () => {
-      clearTimeout(timer);
       socket.disconnect();
     };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -168,11 +183,17 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     [markAsRead],
   );
 
+  const requestNotifPermission = useCallback(async () => {
+    if (typeof Notification === "undefined") return;
+    const result = await Notification.requestPermission();
+    setNotifPermission(result);
+  }, []);
+
   const totalUnread = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
 
   return (
     <UnreadContext.Provider
-      value={{ unreadCounts, totalUnread, markAsRead, setActiveConversation }}
+      value={{ unreadCounts, totalUnread, markAsRead, setActiveConversation, notifPermission, requestNotifPermission, latestMessages }}
     >
       {children}
     </UnreadContext.Provider>
